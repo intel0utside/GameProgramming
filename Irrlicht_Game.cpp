@@ -35,17 +35,17 @@ using namespace gui;
 class MyEventReceiver : public IEventReceiver
 {
 public:
-	
+	// This is the one method that we have to implement
 	virtual bool OnEvent(const SEvent& event)
 	{
-		
+		// Remember whether each key is down or up
 		if (event.EventType == irr::EET_KEY_INPUT_EVENT)
 			KeyIsDown[event.KeyInput.Key] = event.KeyInput.PressedDown;
 
 		return false;
 	}
 
-	
+	// This is used to check whether a key is being held down
 	virtual bool IsKeyDown(EKEY_CODE keyCode) const
 	{
 		return KeyIsDown[keyCode];
@@ -58,21 +58,21 @@ public:
 	}
 
 private:
-	
+	// We use this array to store the current state of each key
 	bool KeyIsDown[KEY_KEY_CODES_COUNT];
 };
 enum{
-	PLAYER_MOVE = 1,
-	PLAYER_CHAT = 2,
-
 	ID_USER_REGISTER = ID_USER_PACKET_ENUM + 1,
 	ID_USER_LOGIN = ID_USER_REGISTER + 1,
-	ID_USER_POSITION_X = ID_USER_LOGIN + 1,
-	ID_USER_POSITION_Y = ID_USER_POSITION_X + 1,
-	ID_USER_POSITION_Z = ID_USER_POSITION_Y + 1,
-	ID_PLAYER_COUNT = ID_USER_POSITION_Z + 1,
+	ID_PLAYER_COUNT = ID_USER_LOGIN + 1,
+	ID_PLAYER_POSITION = ID_PLAYER_COUNT + 1,
 
-	WORLD_UPDATE = ID_PLAYER_COUNT + 1
+	WORLD_UPDATE = ID_PLAYER_POSITION + 1,
+	PLAYER_MOVELEFT = WORLD_UPDATE + 1,
+	PLAYER_MOVERIGHT = PLAYER_MOVELEFT +1,
+	PLAYER_MOVEFWD = PLAYER_MOVERIGHT + 1,
+	PLAYER_MOVEBWD = PLAYER_MOVEFWD + 1,
+	PLAYER_JUMP = PLAYER_MOVEBWD + 1
 };
 int main(){
 	RakNet::RakPeerInterface *client = RakNet::RakPeerInterface::GetInstance();
@@ -137,51 +137,13 @@ int main(){
 		Player* players[8];
 		IAnimatedMeshSceneNode* playersnode[8];
 
-	/*	players[0] = new Player(username, 100, 0,0,0);
-		playersnode[0] = smgr->addAnimatedMeshSceneNode(players[0]->getMesh());
-		if (playersnode[0])
-		{
-			playersnode[0]->setPosition(vector3df(players[0]->getPosition().X, players[0]->getPosition().Y, players[0]->getPosition().Z));
-			playersnode[0]->setMaterialFlag(EMF_LIGHTING, false);
-			playersnode[0]->setMD2Animation(scene::EMAT_STAND);
-			playersnode[0]->setMaterialTexture(0, players[0]->getTexture());
-		}*/
-	/*	for(int i = 0; i < 3; i++){
-			players[i] = new Player(username, 100, 0, 0, 0);
-			playersnode[i] = smgr->addAnimatedMeshSceneNode(players[i]->getMesh());
-			if (playersnode[i])
-			{
-				playersnode[i]->setPosition(vector3df(players[i]->getPosX() + 10*i, players[i]->getPosY(), players[i]->getPosZ()));
-				playersnode[i]->setMaterialFlag(EMF_LIGHTING, false);
-				playersnode[i]->setMD2Animation(scene::EMAT_STAND);
-				playersnode[i]->setMaterialTexture(0, players[i]->getTexture());
-			}
-		}*/
-		/*node[0] = smgr->addAnimatedMeshSceneNode(player->getMesh());
-		if (node[0])
-		{
-			node[0]->setPosition(vector3df(player->getPosX(), player->getPosY(), player->getPosZ()));
-			node[0]->setMaterialFlag(EMF_LIGHTING, false);
-			node[0]->setMD2Animation(scene::EMAT_STAND);
-			node[0]->setMaterialTexture(0, player->getTexture());
-		}
-		node[1] = smgr->addAnimatedMeshSceneNode(players[0]->getMesh());
-		if (node[1])
-		{
-			node[1]->setPosition(vector3df(players[0]->getPosX(), players[0]->getPosY(), players[0]->getPosZ()));
-			node[1]->setMaterialFlag(EMF_LIGHTING, false);
-			node[1]->setMD2Animation(scene::EMAT_STAND);
-			node[1]->setMaterialTexture(0, players[0]->getTexture());
-		}
-		*/
 		guienv->addEditBox(L"", rect<s32>(20, 300, 360, 320), true, 0, 1);
 
 		ICameraSceneNode* camera = smgr->addCameraSceneNode(0, vector3df(0, 30, -40), vector3df(0, 5, 0));
 		
 		
-		int playerstate = PLAYER_MOVE;
+		std::string playerstate = "idle";
 		stringw greeting = L"WELCOME TO THE WORLD OF IRRLICHT 3D ";
-		stringw playerLoginText = L" has connected";
 		stringc playerChat;
 		int otherPlayerNum = 0;
 		core::vector3df nodePosition;
@@ -191,19 +153,9 @@ int main(){
 		char command[3];
 		command[0] = WORLD_UPDATE;
 		command[1] = '\0';
-		char positionXChar[10];
-		char positionYChar[10];
-		char positionZChar[10];
-		char positionX[10];
-		char positionY[10];
-		char positionZ[10];
-		positionX[0] = ID_USER_POSITION_X;
-		positionX[1] = '\0';
-		positionY[0] = ID_USER_POSITION_Y;
-		positionY[1] = '\0';
-		positionZ[0] = ID_USER_POSITION_Z;
-		positionZ[1] = '\0';
-		
+		char playerPos[2048];
+		// In order to do framerate independent movement, we have to know
+		// how long it was since the last frame
 		u32 then = device->getTimer()->getTime();
 		const f32 MOVEMENT_SPEED = 100.f;
 
@@ -211,7 +163,7 @@ int main(){
 		while (device->run())
 		{
 			driver->beginScene(true, true, SColor(255, 100, 101, 140));
-			
+			// Work out a frame delta time.
 			const u32 now = device->getTimer()->getTime();
 			const f32 frameDeltaTime = (f32)(now - then) / 1000.f; // Time in seconds
 			then = now;
@@ -224,12 +176,15 @@ int main(){
 				switch (packet->data[0]){
 				case ID_PLAYER_COUNT:
 				{
-					//std::string playerCountS(reinterpret_cast<char*>(packet->data[1]));
+					char playercount[2048];
+					strcpy(playercount, packetDataS.c_str());
+					char *pch;
+					std::string playerCountS;
+					pch = strtok(playercount, " ");
+					playerCountS = pch;
 					playerCount = atoi(packetDataS.c_str());
-					/*printf(reinterpret_cast<char*>(packet->data[0]));
-					printf(reinterpret_cast<char*>(packet->data[1]));
-					printf(reinterpret_cast<char*>(packet->data[2]));*/
-					printf("THE PLAYER COUNT  %d", playerCount);
+					printf("THE PLAYER COUNT  %d\n", playerCount);
+					printf("THE PLAYER COUNT  %d\n", atoi(playerCountS.c_str()));
 					guienv->addStaticText(packetDataW.c_str(),
 						rect<s32>(20, x2, 360, y2), true, false, 0, 2);
 					x2 += 20;
@@ -238,55 +193,47 @@ int main(){
 					break;
 				case ID_USER_LOGIN:
 					{
-						 stringw playername = packetDataW;
-						 stringw greetingConnected = L" has connected";
-						 playername += greetingConnected;
+						char userinfo[2048];
+						strcpy(userinfo, packetDataS.c_str());
+						char *pch;
+						pch = strtok(userinfo, ",");
+						stringw playername = pch;
+						pch = strtok(NULL, ".");
+						std::string posX = pch;
+						pch = strtok(NULL, ".");
+						std::string posY = pch;
+						pch = strtok(NULL, " ");
+						std::string posZ = pch;
 						 guienv->addStaticText(playername.c_str(),
 							 rect<s32>(20, x2, 360, y2), true, false, 0, 2);
 						 x2 += 20;
 						 y2 += 20;
-						//for (int i = 0; i < 3; i++){
-							//for (int j = 0; j < 3; j++){
-								 /*if (players[i]->getName().equals_ignore_case(playername)){
-									 guienv->addStaticText(L"You have connected",
-										 rect<s32>(20, x2, 360, y2), true, false, 0, 2);
-									 x2 += 20;
-									 y2 += 20;
-								 }*/
-								 //else{
-								//	 if (players[i] == NULL && playersnode[j] == NULL){
 						 int i = playerCount;
-										 players[i] = new Player(packetDataW, 100, 0,0,0);
-										 playersnode[i] = smgr->addAnimatedMeshSceneNode(players[i]->getMesh());
-										 if (playersnode[i])
-										 {
-											 playersnode[i]->setPosition(vector3df(players[i]->getPosition().X, players[i]->getPosition().Y, players[i]->getPosition().Z));
-											 playersnode[i]->setMaterialFlag(EMF_LIGHTING, false);
-											 playersnode[i]->setMD2Animation(scene::EMAT_STAND);
-											 playersnode[i]->setMaterialTexture(0, players[i]->getTexture());
-										 }
-										 guienv->addStaticText(playername.c_str(),
-											 rect<s32>(20, x2, 360, y2), true, false, 0, 2);
-										 x2 += 20;
-										 y2 += 20;
-									// }
-								 //}
-							 //}
-						 //}
+						 players[i] = new Player(packetDataW, 100, atoi(posX.c_str()),atoi(posY.c_str()),atoi(posZ.c_str()));
+						 playersnode[i] = smgr->addAnimatedMeshSceneNode(players[i]->getMesh());
+						 if (playersnode[i])
+							{
+								playersnode[i]->setPosition(vector3df(players[i]->getPosition().X, players[i]->getPosition().Y, players[i]->getPosition().Z));
+								playersnode[i]->setMaterialFlag(EMF_LIGHTING, false);
+								playersnode[i]->setMD2Animation(scene::EMAT_STAND);
+								playersnode[i]->setMaterialTexture(0, players[i]->getTexture());
+							}
+							guienv->addStaticText(playername.c_str(),
+							rect<s32>(20, x2, 360, y2), true, false, 0, 2);
+							x2 += 20;
+							y2 += 20;
 					}
 					break;
-				case ID_USER_POSITION_X:
-					break;
-				case ID_USER_POSITION_Y:
-					break;
-				case ID_USER_POSITION_Z:
+				case ID_PLAYER_POSITION:
+				{
+					
+				}
 					break;
 				case ID_CONNECTION_REQUEST_ACCEPTED:
 					guienv->addStaticText(greeting.c_str(),
 						rect<s32>(20, 20, 360, 40), true, false, 0, 2);
 					break;
 				default:
-					playerCount = atoi(packetDataS.c_str());
 					guienv->addStaticText(packetDataW.c_str(),
 						rect<s32>(20, x2, 360, y2), true, false, 0, 2);
 					x2 += 20;
@@ -296,16 +243,6 @@ int main(){
 				guienv->drawAll();
 				client->DeallocatePacket(packet);
 			}
-
-			for (int i = 0; i < playerCount; i++){
-				strcat(positionX, _itoa(players[i]->getPosX(), positionXChar, 10));
-				strcat(positionY, _itoa(players[i]->getPosY(), positionYChar, 10));
-				strcat(positionZ, _itoa(players[i]->getPosZ(), positionZChar, 10));
-				client->Send(positionX, (const int)strlen(positionX) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);
-				client->Send(positionY, (const int)strlen(positionX) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);
-				client->Send(positionZ, (const int)strlen(positionX) + 1, HIGH_PRIORITY, RELIABLE_ORDERED, 0, RakNet::UNASSIGNED_SYSTEM_ADDRESS, true);
-			}
-
 			/*nodePosition = playersnode[0]->getPosition();
 			if (receiver.IsKeyDown(irr::KEY_KEY_W) || receiver.IsKeyDown(irr::KEY_KEY_A) || receiver.IsKeyDown(irr::KEY_KEY_S) || receiver.IsKeyDown(irr::KEY_KEY_D)){
 				playersnode[0]->setMD2Animation(scene::EMAT_RUN);
