@@ -180,11 +180,11 @@ int main(){
 					strcpy(playercount, packetDataS.c_str());
 					char *pch;
 					std::string playerCountS;
-					pch = strtok(playercount, " ");
+					pch = strtok(playercount, ".");
 					playerCountS = pch;
-					playerCount = atoi(packetDataS.c_str());
-					printf("THE PLAYER COUNT  %d\n", playerCount);
-					printf("THE PLAYER COUNT  %d\n", atoi(playerCountS.c_str()));
+					playerCount = atoi(playerCountS.substr(1, 2).c_str());
+					printf("THE PLAYER COUNT  %s\n", pch);
+					printf("THE PLAYER COUNT  %d\n", atoi(playerCountS.substr(1, 2).c_str()));
 					guienv->addStaticText(packetDataW.c_str(),
 						rect<s32>(20, x2, 360, y2), true, false, 0, 2);
 					x2 += 20;
@@ -197,28 +197,33 @@ int main(){
 						strcpy(userinfo, packetDataS.c_str());
 						char *pch;
 						pch = strtok(userinfo, ",");
-						stringw playername = pch;
+						std::string playername = pch;
 						pch = strtok(NULL, ".");
 						std::string posX = pch;
 						pch = strtok(NULL, ".");
 						std::string posY = pch;
 						pch = strtok(NULL, " ");
 						std::string posZ = pch;
-						 guienv->addStaticText(playername.c_str(),
+						stringw playernameW = stringw(playername.c_str());
+						guienv->addStaticText(playernameW.c_str(),
 							 rect<s32>(20, x2, 360, y2), true, false, 0, 2);
 						 x2 += 20;
 						 y2 += 20;
-						 int i = playerCount;
-						 players[i] = new Player(packetDataW, 100, atoi(posX.c_str()),atoi(posY.c_str()),atoi(posZ.c_str()));
-						 playersnode[i] = smgr->addAnimatedMeshSceneNode(players[i]->getMesh());
-						 if (playersnode[i])
-							{
-								playersnode[i]->setPosition(vector3df(players[i]->getPosition().X, players[i]->getPosition().Y, players[i]->getPosition().Z));
-								playersnode[i]->setMaterialFlag(EMF_LIGHTING, false);
-								playersnode[i]->setMD2Animation(scene::EMAT_STAND);
-								playersnode[i]->setMaterialTexture(0, players[i]->getTexture());
-							}
-							guienv->addStaticText(playername.c_str(),
+						 int i = playerCount - 1;
+						 while (i < playerCount){
+							 printf("THE Iteration  %d\n", i);
+							 players[i] = new Player(playername, 100, atoi(posX.c_str()), atoi(posY.c_str()), atoi(posZ.c_str()));
+							 playersnode[i] = smgr->addAnimatedMeshSceneNode(players[i]->getMesh());
+							 if (playersnode[i])
+							 {
+								 playersnode[i]->setPosition(vector3df(players[i]->getPosition().X, players[i]->getPosition().Y, players[i]->getPosition().Z));
+								 playersnode[i]->setMaterialFlag(EMF_LIGHTING, false);
+								 playersnode[i]->setMD2Animation(scene::EMAT_STAND);
+								 playersnode[i]->setMaterialTexture(0, players[i]->getTexture());
+							 }
+							 i++;
+						 }
+						 guienv->addStaticText(playernameW.c_str(),
 							rect<s32>(20, x2, 360, y2), true, false, 0, 2);
 							x2 += 20;
 							y2 += 20;
@@ -243,6 +248,7 @@ int main(){
 				guienv->drawAll();
 				client->DeallocatePacket(packet);
 			}
+
 			/*nodePosition = playersnode[0]->getPosition();
 			if (receiver.IsKeyDown(irr::KEY_KEY_W) || receiver.IsKeyDown(irr::KEY_KEY_A) || receiver.IsKeyDown(irr::KEY_KEY_S) || receiver.IsKeyDown(irr::KEY_KEY_D)){
 				playersnode[0]->setMD2Animation(scene::EMAT_RUN);
@@ -258,7 +264,8 @@ int main(){
 				else if (receiver.IsKeyDown(irr::KEY_KEY_D)){
 					nodePosition.X += MOVEMENT_SPEED * frameDeltaTime;
 				}
-			}*/
+			}
+			playersnode[0]->setPosition(nodePosition);*/
 			if (receiver.IsKeyDown(irr::KEY_RETURN)){
 				playersnode[0]->setMD2Animation(scene::EMAT_STAND);
 				playerChat = guienv->getRootGUIElement()->getElementFromId(1, true)->getText();
